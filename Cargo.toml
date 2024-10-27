@@ -40,6 +40,8 @@ ahash = { version = "0.8.11", default-features = false }
 enum-as-inner = "0.6.1"
 either = "1.13.0"
 wasmi = "0.38.0"
+sha2 = "0.10.8"
+anyhow = "1.0.91"
 
 [features]
 hydrate = ["leptos/hydrate", "leptos_meta/hydrate", "leptos_router/hydrate"]

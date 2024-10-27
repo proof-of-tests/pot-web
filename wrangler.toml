@@ -6,6 +6,13 @@ routes = [
     { pattern = "proof-of-tests.org", zone_name = "proof-of-tests.org", custom_domain = true },
 ]
 
+d1_databases = [
+    { binding = "pot", database_name = "pot", database_id = "ea2f0cea-47cd-456f-b554-b03b1ec73ba1" },
+]
+
+[[r2_buckets]]
+binding = "wasm"
+bucket_name = "wasm"
 
 [assets]
 directory = "assets"
