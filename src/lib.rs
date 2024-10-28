@@ -2,6 +2,7 @@
 mod app;
 #[cfg(feature = "ssr")]
 mod handlers;
+mod wasm;
 
 #[cfg(feature = "hydrate")]
 #[wasm_bindgen::prelude::wasm_bindgen]
@@ -14,8 +15,11 @@ pub fn hydrate() {
 #[cfg(feature = "ssr")]
 mod ssr_imports {
     use crate::app::App;
-    use crate::handlers::{upload_wasm_handler, validate_handler};
-    use axum::{routing::post, Extension, Router};
+    use crate::handlers::{upload_proof_handler, upload_wasm_handler, validate_handler};
+    use axum::{
+        routing::{post, put},
+        Extension, Router,
+    };
     use leptos::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
     use std::sync::Arc;
@@ -34,6 +38,7 @@ mod ssr_imports {
             .route("/api/*fn_name", post(leptos_axum::handle_server_fns))
             .route("/validate", post(validate_handler))
             .route("/upload_wasm", post(upload_wasm_handler))
+            .route("/upload_proof", put(upload_proof_handler))
             .with_state(leptos_options)
             .layer(Extension(Arc::new(env)));
         app

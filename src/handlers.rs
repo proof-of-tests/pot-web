@@ -1,14 +1,15 @@
 use std::sync::Arc;
 
+use anyhow::Context as _;
 use axum::response::IntoResponse;
 
-use axum::extract::Multipart;
+use axum::extract::{Multipart, Query};
 
 use axum::Extension;
 use http::StatusCode;
-use send_wrapper::SendWrapper;
+use serde::Deserialize;
 use wasmi::*;
-use worker::Env;
+use worker::{query, Env};
 
 // Idempotent WASM uploader
 // Proof uploader
@@ -76,28 +77,71 @@ pub async fn validate_handler(mut payload: Multipart) -> impl IntoResponse {
 // Idempotent WASM uploader
 // Uploads a WASM file to R2, uses the hash as the key
 #[axum::debug_handler]
+#[worker::send]
 pub async fn upload_wasm_handler(
     Extension(env): Extension<Arc<Env>>,
     mut payload: Multipart,
 ) -> Result<impl IntoResponse, AppError> {
-    SendWrapper::new(async move {
-        while let Some(field) = payload.next_field().await? {
-            if field.name() == Some("file") {
-                let data = field.bytes().await?;
-                log::info!("File length: {}", data.len());
-                // Calculate the hash of the data
-                let hash = {
-                    use sha2::{Digest, Sha256};
-                    let mut hasher = Sha256::new();
-                    hasher.update(&data);
-                    format!("{:x}", hasher.finalize())
-                };
-                let vec = data.to_vec();
-                env.bucket("wasm")?.put(&hash, vec).execute().await?;
-                return Ok(hash);
-            }
+    while let Some(field) = payload.next_field().await? {
+        if field.name() == Some("file") {
+            let data = field.bytes().await?;
+            log::info!("File length: {}", data.len());
+            // Calculate the hash of the data
+            let hash = {
+                use sha2::{Digest, Sha256};
+                let mut hasher = Sha256::new();
+                hasher.update(&data);
+                format!("{:x}", hasher.finalize())
+            };
+            let vec = data.to_vec();
+            env.bucket("wasm")?.put(&hash, vec).execute().await?;
+            return Ok(hash);
         }
-        Err(AppError((StatusCode::BAD_REQUEST, "No file found").into_response()))
-    })
+    }
+    Err(AppError((StatusCode::BAD_REQUEST, "No file found").into_response()))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ProofParams {
+    wasm: String,
+    seed: u64,
+    hash: u64,
+}
+
+#[axum::debug_handler]
+#[worker::send]
+pub async fn upload_proof_handler(
+    Extension(env): Extension<Arc<Env>>,
+    Query(params): Query<ProofParams>,
+) -> Result<impl IntoResponse, AppError> {
+    let bucket = env.bucket("wasm").unwrap();
+    let wasm_object = bucket
+        .get(&params.wasm)
+        .execute()
+        .await?
+        .context("WASM not found")?
+        .body()
+        .context("R2 object without body")?
+        .bytes()
+        .await?;
+    let result = params.hash; // crate::wasm::run_test(&wasm_object, "test", params.seed).context("Failed to run WASM")?;
+                              // check that result == params.hash
+    if result != params.hash {
+        return Err(AppError((StatusCode::BAD_REQUEST, "Invalid proof").into_response()));
+    }
+    let d1 = env.d1("pot")?;
+    // Insert the proof into the database. If the seed or hash already exist, return a 204. We're only interested in new proofs.
+    let ret = query!(
+        &d1,
+        "INSERT INTO pot (wasm, seed, hash) VALUES (?, ?, ?)",
+        &params.wasm,
+        params.seed,
+        params.hash
+    )?
+    .run()
     .await
+    .map_err(|_| AppError((StatusCode::NO_CONTENT, String::default()).into_response()))?;
+    log::info!("D1 result: {:?} {:?}", ret.success(), ret.error());
+    Ok(StatusCode::CREATED)
+    // Fields: wasm, created_at, seed, hash, owner
 }
