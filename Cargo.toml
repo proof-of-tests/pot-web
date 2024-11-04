@@ -44,7 +44,7 @@ worker-kv = "0.7.0"
 ahash = { version = "0.8.11", default-features = false }
 enum-as-inner = "0.6.1"
 either = "1.13.0"
-wasmi = "0.38.0"
+wasmi = "0.39.0"
 sha2 = "0.10.8"
 anyhow = "1.0.91"
 
