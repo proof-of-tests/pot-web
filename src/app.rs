@@ -16,10 +16,7 @@ pub async fn exchange_token(code: String) -> Result<String, ServerFnError> {
     use worker::Env;
 
     let Extension(env): Extension<Arc<Env>> = extract().await?;
-    let client_secret = env
-        .secret("GITHUB_CLIENT_SECRET")
-        .map_err(|_| ServerFnError::ServerError::<NoCustomError>("Missing GITHUB_CLIENT_SECRET".into()))?
-        .to_string();
+    let client_secret = env.secret("GITHUB_CLIENT_SECRET")?.to_string();
 
     let client = reqwest::Client::new();
     let response = client
@@ -31,20 +28,13 @@ pub async fn exchange_token(code: String) -> Result<String, ServerFnError> {
             ("code", &code),
         ])
         .send()
-        .await
-        .map_err(|e| ServerFnError::ServerError::<NoCustomError>(e.to_string()))?;
+        .await?;
 
     if response.status().is_success() {
-        let token_response = response
-            .json::<TokenResponse>()
-            .await
-            .map_err(|e| ServerFnError::ServerError::<NoCustomError>(e.to_string()))?;
+        let token_response = response.json::<TokenResponse>().await?;
         Ok(token_response.access_token)
     } else {
-        let error = response
-            .json::<ErrorResponse>()
-            .await
-            .map_err(|e| ServerFnError::ServerError::<NoCustomError>(e.to_string()))?;
+        let error = response.json::<ErrorResponse>().await?;
         Err(ServerFnError::ServerError::<NoCustomError>(error.error))
     }
 }
@@ -52,7 +42,7 @@ pub async fn exchange_token(code: String) -> Result<String, ServerFnError> {
 #[component]
 fn LoginButton() -> impl IntoView {
     let auth_url = format!(
-        "https://github.com/login/oauth/authorize?client_id={}&redirect_uri=http://127.0.0.1:8787/oauth/callback&scope=read:project read:org",
+        "https://github.com/login/oauth/authorize?client_id={}&redirect_uri=http://127.0.0.1:8787/oauth/callback&scope=read:project+read:org",
         GITHUB_CLIENT_ID
     );
 
