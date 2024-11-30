@@ -124,8 +124,8 @@ pub async fn upload_proof_handler(
         .context("R2 object without body")?
         .bytes()
         .await?;
-    let result = params.hash; // crate::wasm::run_test(&wasm_object, "test", params.seed).context("Failed to run WASM")?;
-                              // check that result == params.hash
+    let result = crate::wasm::run_test(&wasm_object, "test", params.seed).context("Failed to run WASM")?;
+    // check that result == params.hash
     if result != params.hash {
         return Err(AppError((StatusCode::BAD_REQUEST, "Invalid proof").into_response()));
     }

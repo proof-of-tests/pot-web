@@ -46,7 +46,7 @@ mod ssr_imports {
 
     #[event(start)]
     fn register() {
-        // Nothing for now
+        server_fn::axum::register_explicit::<crate::app::ExchangeToken>();
     }
 
     #[event(fetch)]

@@ -11,7 +11,7 @@ worker = { version = "0.4.0", features = [
   'http',
   'axum',
   'd1',
-], optional = true }
+], optional = false }
 worker-macros = { version = "0.4.0", features = ['http'], optional = true }
 tower-service = "0.3.3"
 console_error_panic_hook = { version = "0.1.1" }
@@ -47,6 +47,10 @@ either = "1.13.0"
 wasmi = "0.38.0"
 sha2 = "0.10.8"
 anyhow = "1.0.91"
+oauth2 = "4.4"
+reqwest = { version = "0.11", features = ["json"] }
+url = "2.5"
+base64 = "0.21"
 
 [features]
 hydrate = ["leptos/hydrate", "leptos_meta/hydrate", "leptos_router/hydrate"]
@@ -57,6 +61,6 @@ ssr = [
   "leptos_axum/wasm",
   "leptos_meta/ssr",
   "leptos_router/ssr",
-  "dep:worker",
+  # "dep:worker",
   "dep:worker-macros",
 ]
