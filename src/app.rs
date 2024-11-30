@@ -6,6 +6,7 @@ use serde::Serialize;
 use server_fn::error::NoCustomError;
 use std::sync::Arc;
 
+// Wish I could use `octocrab` but it doesn't support WASM.
 #[derive(Clone, Debug, Deserialize)]
 struct Repository {
     name: String,
