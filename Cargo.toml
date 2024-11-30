@@ -37,7 +37,7 @@ web-sys = { version = "0.3.72", features = [
   "StorageManager",
 ] }
 instant = { version = "0.1.13", features = ["wasm-bindgen"] }
-serde_json = "1.0.128"
+serde_json = "1.0"
 send_wrapper = "0.6.0"
 gloo-timers = "0.3.0"
 worker-kv = "0.7.0"
