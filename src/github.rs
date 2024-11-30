@@ -9,13 +9,13 @@ pub struct Repository {
     pub private: bool,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Hash)]
 pub struct Organization {
     pub login: String,
     pub avatar_url: String,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 pub struct User {
     pub login: String,
 }
@@ -33,7 +33,7 @@ pub struct ErrorResponse {
     pub error_description: Option<String>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct UserAccessToken {
     pub access_token: String,
 }
