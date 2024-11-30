@@ -300,23 +300,21 @@ pub fn App() -> impl IntoView {
     }
 }
 
+#[derive(Params, Clone, Debug, PartialEq, Eq)]
+struct OAuthCallbackParams {
+    code: Option<String>,
+}
+
 #[component]
 fn OAuthCallback() -> impl IntoView {
     let navigate = use_navigate();
+    let params = use_query::<OAuthCallbackParams>();
 
     create_effect(move |_| {
         let navigate = navigate.clone();
-        spawn_local(async move {
-            let query_string = window().location().search().unwrap_or_default();
-            let code = url::Url::parse(&format!("http://dummy{}", query_string))
-                .ok()
-                .and_then(|url| {
-                    url.query_pairs()
-                        .find(|(key, _)| key == "code")
-                        .map(|(_, value)| value.to_string())
-                });
 
-            if let Some(code) = code {
+        if let Ok(OAuthCallbackParams { code: Some(code) }) = params.get() {
+            spawn_local(async move {
                 match exchange_token(code).await {
                     Ok(token) => {
                         store_access_token(&token);
@@ -328,8 +326,8 @@ fn OAuthCallback() -> impl IntoView {
                         navigate("/", NavigateOptions::default());
                     }
                 }
-            }
-        });
+            });
+        }
     });
 
     view! {
