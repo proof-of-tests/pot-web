@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 // Wish I could use `octocrab` but it doesn't support WASM.
 #[derive(Clone, Debug, Deserialize)]
 pub struct Repository {
-    pub name: String,
+    // pub name: String,
     pub full_name: String,
     pub html_url: String,
     pub private: bool,
@@ -59,12 +59,12 @@ mod tests {
 
         assert_eq!(repositories.len(), 2);
 
-        assert_eq!(repositories[0].name, "repo1");
+        // assert_eq!(repositories[0].name, "repo1");
         assert_eq!(repositories[0].full_name, "user/repo1");
         assert_eq!(repositories[0].html_url, "https://github.com/user/repo1");
         assert_eq!(repositories[0].private, false);
 
-        assert_eq!(repositories[1].name, "repo2");
+        // assert_eq!(repositories[1].name, "repo2");
         assert_eq!(repositories[1].full_name, "user/repo2");
         assert_eq!(repositories[1].html_url, "https://github.com/user/repo2");
         assert_eq!(repositories[1].private, true);
