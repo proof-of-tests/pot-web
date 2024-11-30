@@ -6,6 +6,8 @@ use leptos_router::*;
 use server_fn::error::NoCustomError;
 use std::sync::Arc;
 
+const GITHUB_CLIENT_ID: &str = "Ov23lixO0S9pamhwo1u7";
+
 #[server(ExchangeToken, "/api")]
 #[worker::send]
 pub async fn exchange_token(code: String) -> Result<String, ServerFnError> {
@@ -18,14 +20,13 @@ pub async fn exchange_token(code: String) -> Result<String, ServerFnError> {
         .secret("GITHUB_CLIENT_SECRET")
         .map_err(|_| ServerFnError::ServerError::<NoCustomError>("Missing GITHUB_CLIENT_SECRET".into()))?
         .to_string();
-    let client_id = "Ov23lixO0S9pamhwo1u7";
 
     let client = reqwest::Client::new();
     let response = client
         .post("https://github.com/login/oauth/access_token")
         .header("Accept", "application/json")
         .form(&[
-            ("client_id", client_id),
+            ("client_id", GITHUB_CLIENT_ID),
             ("client_secret", &client_secret),
             ("code", &code),
         ])
@@ -50,10 +51,9 @@ pub async fn exchange_token(code: String) -> Result<String, ServerFnError> {
 
 #[component]
 fn LoginButton() -> impl IntoView {
-    let client_id = "Ov23lixO0S9pamhwo1u7";
     let auth_url = format!(
         "https://github.com/login/oauth/authorize?client_id={}&redirect_uri=http://127.0.0.1:8787/oauth/callback&scope=read:project read:org",
-        client_id
+        GITHUB_CLIENT_ID
     );
 
     view! {
