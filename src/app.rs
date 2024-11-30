@@ -74,20 +74,11 @@ fn RepositoryList() -> impl IntoView {
         // This would normally come from your OAuth flow
         let access_token = get_access_token_from_storage();
         if let Some(token) = access_token {
-            let client = reqwest::Client::new();
-            let set_repos = set_repos.clone();
             spawn_local(async move {
-                let response = client
-                    .get("https://api.github.com/user/repos")
-                    .header("Authorization", format!("Bearer {}", token))
-                    .header("User-Agent", "proof-of-tests")
-                    .send()
-                    .await;
+                let response = token.user_repositories().await;
 
-                if let Ok(response) = response {
-                    if let Ok(repositories) = response.json::<Vec<Repository>>().await {
-                        set_repos.set(repositories);
-                    }
+                if let Ok(repositories) = response {
+                    set_repos.set(repositories);
                 }
             });
         }
@@ -120,63 +111,27 @@ fn OrganizationList() -> impl IntoView {
     let (org_repos, set_org_repos) = create_signal(std::collections::HashMap::<String, Vec<Repository>>::new());
 
     create_effect(move |_| {
-        let access_token = get_access_token_from_storage();
-        if let Some(token) = access_token {
-            let client = reqwest::Client::new();
-            let set_orgs = set_orgs.clone();
-            let set_org_repos = set_org_repos.clone();
-
+        if let Some(token) = get_access_token_from_storage() {
             spawn_local(async move {
-                // First fetch user info to get login name
-                let user_response = client
-                    .get("https://api.github.com/user")
-                    .header("Authorization", format!("Bearer {}", token))
-                    .header("User-Agent", "proof-of-tests")
-                    .send()
-                    .await;
-
-                let login = match user_response {
-                    Ok(response) => {
-                        if let Ok(user) = response.json::<User>().await {
-                            Some(user.login)
-                        } else {
-                            None
-                        }
-                    }
-                    Err(_) => None,
-                };
+                let login = token.user().await.map(|user| user.login).ok();
 
                 if let Some(login) = login {
                     // Fetch organizations using the login name
-                    let response = client
-                        .get(format!("https://api.github.com/users/{}/orgs", login))
-                        .header("Authorization", format!("Bearer {}", token))
-                        .header("User-Agent", "proof-of-tests")
-                        .send()
-                        .await;
+                    let response = token.organizations(&login).await;
 
-                    if let Ok(response) = response {
-                        if let Ok(organizations) = response.json::<Vec<Organization>>().await {
-                            set_orgs.set(organizations.clone());
+                    if let Ok(organizations) = response {
+                        set_orgs.set(organizations.clone());
 
-                            // Fetch repositories for each organization
-                            let mut org_repositories = std::collections::HashMap::new();
-                            for org in organizations {
-                                let repos_response = client
-                                    .get(format!("https://api.github.com/orgs/{}/repos", org.login))
-                                    .header("Authorization", format!("Bearer {}", token))
-                                    .header("User-Agent", "proof-of-tests")
-                                    .send()
-                                    .await;
+                        // Fetch repositories for each organization
+                        let mut org_repositories = std::collections::HashMap::new();
+                        for org in organizations {
+                            let repos_response = token.org_repositories(&org.login).await;
 
-                                if let Ok(repos_response) = repos_response {
-                                    if let Ok(repositories) = repos_response.json::<Vec<Repository>>().await {
-                                        org_repositories.insert(org.login, repositories);
-                                    }
-                                }
+                            if let Ok(repositories) = repos_response {
+                                org_repositories.insert(org.login, repositories);
                             }
-                            set_org_repos.set(org_repositories);
                         }
+                        set_org_repos.set(org_repositories);
                     }
                 }
             });
@@ -319,10 +274,11 @@ fn store_access_token(token: &str) {
     }
 }
 
-fn get_access_token_from_storage() -> Option<String> {
+fn get_access_token_from_storage() -> Option<UserAccessToken> {
     window()
         .local_storage()
         .ok()
         .flatten()
         .and_then(|storage| storage.get_item("github_token").ok().flatten())
+        .map(|token| UserAccessToken::from_string(token))
 }

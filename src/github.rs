@@ -33,6 +33,67 @@ pub struct ErrorResponse {
     pub error_description: Option<String>,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct UserAccessToken {
+    pub access_token: String,
+}
+
+impl UserAccessToken {
+    pub fn from_string(s: String) -> Self {
+        Self { access_token: s }
+    }
+
+    pub async fn user(&self) -> Result<User, reqwest::Error> {
+        let client = reqwest::Client::new();
+
+        // First fetch user info to get login name
+        let user_response = client
+            .get("https://api.github.com/user")
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .header("User-Agent", "proof-of-tests")
+            .send()
+            .await?;
+
+        user_response.json::<User>().await
+    }
+
+    pub async fn organizations(&self, login: &str) -> Result<Vec<Organization>, reqwest::Error> {
+        let client = reqwest::Client::new();
+        let response = client
+            .get(format!("https://api.github.com/users/{}/orgs", login))
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .header("User-Agent", "proof-of-tests")
+            .send()
+            .await?;
+
+        response.json::<Vec<Organization>>().await
+    }
+
+    pub async fn org_repositories(&self, login: &str) -> Result<Vec<Repository>, reqwest::Error> {
+        let client = reqwest::Client::new();
+        let response = client
+            .get(format!("https://api.github.com/orgs/{}/repos", login))
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .header("User-Agent", "proof-of-tests")
+            .send()
+            .await?;
+
+        response.json::<Vec<Repository>>().await
+    }
+
+    pub async fn user_repositories(&self) -> Result<Vec<Repository>, reqwest::Error> {
+        let client = reqwest::Client::new();
+        let response = client
+            .get("https://api.github.com/user/repos")
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .header("User-Agent", "proof-of-tests")
+            .send()
+            .await?;
+
+        response.json::<Vec<Repository>>().await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
