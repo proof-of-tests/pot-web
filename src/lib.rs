@@ -1,5 +1,8 @@
 #![allow(non_snake_case)]
 mod app;
+mod components;
+mod github;
+
 #[cfg(feature = "ssr")]
 mod handlers;
 mod wasm;
