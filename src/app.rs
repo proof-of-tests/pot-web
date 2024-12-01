@@ -138,8 +138,8 @@ fn RepositoryList() -> impl IntoView {
         || get_access_token_from_storage(),
         |token| async move {
             match token {
-                Some(token) => token.user_repositories().await.ok(),
-                None => None,
+                Some(token) => token.user_repositories().await.ok().unwrap_or_default(),
+                None => vec![],
             }
         },
     );
@@ -150,8 +150,7 @@ fn RepositoryList() -> impl IntoView {
             <div class="space-y-2">
                 {move || match repos.get() {
                     None => view! { <div>"Loading..."</div> }.into_view(),
-                    Some(None) => view! { <div>"Failed to load repositories"</div> }.into_view(),
-                    Some(Some(repositories)) => {
+                    Some(repositories) => {
                         repositories.into_iter().map(|repo| {
                             view! {
                                 <div class="p-4 border rounded hover:bg-gray-50">
@@ -233,6 +232,43 @@ fn OrganizationList() -> impl IntoView {
 }
 
 #[component]
+fn MenuBar() -> impl IntoView {
+    let user_ctx = expect_context::<UserContext>();
+
+    view! {
+        <div class="bg-sky-700 text-white p-4 flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <h1 class="text-2xl font-bold">"Proof of Tests"</h1>
+                <div class="bg-sky-600 px-3 py-1 rounded-full text-sm">
+                    "0 tests" // We'll make this dynamic later
+                </div>
+            </div>
+            <div>
+                {move || {
+                    if user_ctx.is_logged_in() {
+                        let user_resource = user_ctx.user();
+                        view! {
+                            {move || user_resource.get().map(|user| match user {
+                                Some(user) => view! {
+                                    <img
+                                        src=user.avatar_url
+                                        class="w-8 h-8 rounded-full cursor-pointer"
+                                        alt="User avatar"
+                                    />
+                                }.into_view(),
+                                None => view! { <div>"Loading..."</div> }.into_view(),
+                            })}
+                        }.into_view()
+                    } else {
+                        view! { <LoginButton /> }.into_view()
+                    }
+                }}
+            </div>
+        </div>
+    }
+}
+
+#[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
 
@@ -252,41 +288,36 @@ pub fn App() -> impl IntoView {
 
         <Messages/>
 
-        <div class="w-full h-128 bg-gradient-to-b from-sky-700 from-30% to-sky-100"></div>
+        <MenuBar/>
 
-        <h1 class="text-6xl font-bold text-center pt-6 mb-2 -mt-128 text-white">
-            "Proof of Tests"
-        </h1>
-
-        <div class="max-w-4xl mx-auto p-4 bg-white" style:box-shadow="0 0px 5px rgba(0, 0, 0, 0.4)">
-            <Router>
-                <main>
-                    <Routes>
-                        <Route
-                            path="/"
-                            view=move || {
-                                view! {
-                                    <div class="space-y-8">
-                                        <div class="text-center">
-                                            <LoginButton/>
+        <div class="bg-white" style:box-shadow="0 0px 5px rgba(0, 0, 0, 0.4)">
+            <div class="max-w-4xl mx-auto p-4">
+                <Router>
+                    <main>
+                        <Routes>
+                            <Route
+                                path="/"
+                                view=move || {
+                                    view! {
+                                        <div class="space-y-8">
+                                            <RepositoryList/>
+                                            <OrganizationList/>
                                         </div>
-                                        <RepositoryList/>
-                                        <OrganizationList/>
-                                    </div>
+                                    }
                                 }
-                            }
-                        />
-                        <Route
-                            path="/oauth/callback"
-                            view=move || {
-                                view! {
-                                    <OAuthCallback/>
+                            />
+                            <Route
+                                path="/oauth/callback"
+                                view=move || {
+                                    view! {
+                                        <OAuthCallback/>
+                                    }
                                 }
-                            }
-                        />
-                    </Routes>
-                </main>
-            </Router>
+                            />
+                        </Routes>
+                    </main>
+                </Router>
+            </div>
         </div>
     }
 }

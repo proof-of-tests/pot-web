@@ -18,6 +18,8 @@ pub struct Organization {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 pub struct User {
     pub login: String,
+    pub avatar_url: String,
+    pub gravatar_id: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -155,11 +157,14 @@ mod tests {
             "id": 1,
             "node_id": "MDQ6VXNlcjE=",
             "avatar_url": "https://github.com/images/error/octocat_happy.gif",
+            "gravatar_id": "",
             "url": "https://api.github.com/users/octocat"
         }"#;
 
         let user: User = serde_json::from_str(json).unwrap();
         assert_eq!(user.login, "octocat");
+        assert_eq!(user.avatar_url, "https://github.com/images/error/octocat_happy.gif");
+        assert_eq!(user.gravatar_id, "");
     }
 
     // Test that User can be deserialized from a real GitHub API response
