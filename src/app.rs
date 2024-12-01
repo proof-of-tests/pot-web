@@ -9,6 +9,7 @@ use leptos_router::params::Params;
 use leptos_router::*;
 use server_fn::error::NoCustomError;
 use std::sync::Arc;
+use web_sys::MouseEvent;
 
 const GITHUB_CLIENT_ID: &str = "Ov23lixO0S9pamhwo1u7";
 
@@ -52,12 +53,6 @@ pub struct UserContext {
 
 impl UserContext {
     pub fn new() -> Self {
-        // let token = if cfg!(not(feature = "ssr")) {
-        //     get_token_from_storage()
-        // } else {
-        //     None
-        // };
-
         let logged_in = RwSignal::new(false);
         let token = RwSignal::new(None);
 
@@ -234,6 +229,55 @@ fn OrganizationList() -> impl IntoView {
 }
 
 #[component]
+fn UserDropdown(#[prop(into)] user_name: String, #[prop(into)] avatar_url: String) -> impl IntoView {
+    let (is_open, set_is_open) = signal(false);
+    let user_ctx = expect_context::<UserContext>();
+
+    let toggle_dropdown = move |e: MouseEvent| {
+        e.stop_propagation();
+        set_is_open.update(|value| *value = !*value);
+    };
+
+    // Close dropdown when clicking outside
+    let close_dropdown = move |_| set_is_open.set(false);
+    window_event_listener(leptos::ev::click, close_dropdown);
+
+    view! {
+        <div class="relative">
+            <img
+                src=avatar_url
+                class="w-8 h-8 rounded-full cursor-pointer"
+                alt="User avatar"
+                on:click=toggle_dropdown
+            />
+            <Show when=move || is_open.get()>
+                <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10">
+                    <div class="px-4 py-2 text-sm text-gray-700 border-b">
+                        {user_name.clone()}
+                    </div>
+                    <a
+                        href="/settings"
+                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        on:click=move |_| set_is_open.set(false)
+                    >
+                        "Settings"
+                    </a>
+                    <button
+                        class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        on:click=move |_| {
+                            user_ctx.logout();
+                            use_navigate()("/", NavigateOptions::default());
+                        }
+                    >
+                        "Log out"
+                    </button>
+                </div>
+            </Show>
+        </div>
+    }
+}
+
+#[component]
 fn MenuBar() -> impl IntoView {
     let user_ctx = expect_context::<UserContext>();
 
@@ -252,10 +296,9 @@ fn MenuBar() -> impl IntoView {
                         view! {
                             {move || user_resource.get().as_deref().map(|user| match user {
                                 Some(user) => view! {
-                                    <img
-                                        src=user.avatar_url.clone()
-                                        class="w-8 h-8 rounded-full cursor-pointer"
-                                        alt="User avatar"
+                                    <UserDropdown
+                                        user_name=user.login.clone()
+                                        avatar_url=user.avatar_url.clone()
                                     />
                                 }.into_any(),
                                 None => view! { <div>"Loading..."</div> }.into_any(),
@@ -325,6 +368,12 @@ pub fn App() -> impl IntoView {
                                 }
                             />
                             <Route
+                                path=path!("/settings")
+                                view=move || {
+                                    view! { <Settings/> }
+                                }
+                            />
+                            <Route
                                 path=path!("/oauth/callback")
                                 view=move || {
                                     view! {
@@ -385,4 +434,14 @@ fn get_access_token_from_storage() -> Option<UserAccessToken> {
     use_context::<UserContext>()
         .and_then(|ctx| ctx.get_token())
         .map(UserAccessToken::from_string)
+}
+
+#[component]
+fn Settings() -> impl IntoView {
+    view! {
+        <div class="space-y-4">
+            <h2 class="text-2xl font-bold">"Settings"</h2>
+            <p class="text-gray-600">"Settings page coming soon..."</p>
+        </div>
+    }
 }
