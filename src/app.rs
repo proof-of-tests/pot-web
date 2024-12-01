@@ -1,7 +1,11 @@
 use crate::components::{MessageContext, MessageSeverity, Messages};
 use crate::github::*;
-use leptos::*;
+use leptos::prelude::*;
+use leptos::task::*;
 use leptos_meta::*;
+use leptos_router::components::*;
+use leptos_router::hooks::{use_navigate, use_query};
+use leptos_router::params::Params;
 use leptos_router::*;
 use server_fn::error::NoCustomError;
 use std::sync::Arc;
@@ -39,33 +43,37 @@ pub async fn exchange_token(code: String) -> Result<String, ServerFnError> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy)]
 pub struct UserContext {
     logged_in: RwSignal<bool>,
     token: RwSignal<Option<String>>,
-    user: Resource<Option<String>, Option<User>>,
+    user: LocalResource<Option<User>>,
 }
 
 impl UserContext {
     pub fn new() -> Self {
-        let token = if cfg!(not(feature = "ssr")) {
-            get_token_from_storage()
-        } else {
-            None
-        };
+        // let token = if cfg!(not(feature = "ssr")) {
+        //     get_token_from_storage()
+        // } else {
+        //     None
+        // };
 
-        let logged_in = create_rw_signal(token.is_some());
-        let token = create_rw_signal(token);
+        let logged_in = RwSignal::new(false);
+        let token = RwSignal::new(None);
 
-        let user = create_local_resource(
-            move || token.get(),
-            |token| async move {
-                match token {
-                    Some(token) => UserAccessToken::from_string(token).user().await.ok(),
-                    None => None,
-                }
-            },
-        );
+        let user = LocalResource::new(move || async move {
+            match token.get() {
+                Some(token) => UserAccessToken::from_string(token).user().await.ok(),
+                None => None,
+            }
+        });
+
+        Effect::new(move |_| {
+            if let Some(access_token) = get_token_from_storage() {
+                token.set(Some(access_token));
+                logged_in.set(true);
+            }
+        });
 
         Self { logged_in, token, user }
     }
@@ -90,7 +98,7 @@ impl UserContext {
         self.logged_in.get()
     }
 
-    pub fn user(&self) -> Resource<Option<String>, Option<User>> {
+    pub fn user(&self) -> LocalResource<Option<User>> {
         self.user
     }
 }
@@ -134,37 +142,33 @@ fn LoginButton() -> impl IntoView {
 
 #[component]
 fn RepositoryList() -> impl IntoView {
-    let repos = create_local_resource(
-        || get_access_token_from_storage(),
-        |token| async move {
-            match token {
-                Some(token) => token.user_repositories().await.ok().unwrap_or_default(),
-                None => vec![],
-            }
-        },
-    );
+    let repos = LocalResource::new(move || async move {
+        match get_access_token_from_storage() {
+            Some(token) => token.user_repositories().await.ok().unwrap_or_default(),
+            None => vec![],
+        }
+    });
 
     view! {
         <div class="space-y-4">
             <h2 class="text-2xl font-bold">"Your Repositories"</h2>
             <div class="space-y-2">
-                {move || match repos.get() {
-                    None => view! { <div>"Loading..."</div> }.into_view(),
-                    Some(repositories) => {
-                        repositories.into_iter().map(|repo| {
+                <Suspense fallback=move || view! { <p>"Loading..."</p> }.into_any()>
+                    {move || Suspend::new(async move {
+                        repos.await.into_iter().map(|repo| {
                             view! {
-                                <div class="p-4 border rounded hover:bg-gray-50">
-                                    <a href=repo.html_url target="_blank" class="font-medium hover:underline">
-                                        {repo.full_name}
-                                    </a>
+                            <div class="p-4 border rounded hover:bg-gray-50">
+                                <a href=repo.html_url.clone() target="_blank" class="font-medium hover:underline">
+                                    {repo.full_name.clone()}
+                                </a>
                                     <span class="ml-2 text-sm text-gray-500">
                                         {if repo.private { "Private" } else { "Public" }}
                                     </span>
                                 </div>
                             }
                         }).collect_view()
-                    }
-                }}
+                    })}
+                </Suspense>
             </div>
         </div>
     }
@@ -174,45 +178,42 @@ fn RepositoryList() -> impl IntoView {
 fn OrganizationList() -> impl IntoView {
     let user_ctx = expect_context::<UserContext>();
 
-    let org_data = create_local_resource(
-        move || (get_access_token_from_storage(), user_ctx.user().get()),
-        |(token, user)| async move {
-            match (token, user.flatten()) {
-                (Some(token), Some(user)) => {
-                    let orgs = token.organizations(&user.login).await.ok().unwrap_or_default();
-                    let mut org_map = std::collections::HashMap::new();
-                    for org in orgs {
-                        if let Ok(repositories) = token.org_repositories(&org.login).await {
-                            org_map.insert(org, repositories);
-                        }
+    let org_data = LocalResource::new(move || async move {
+        match (get_access_token_from_storage(), user_ctx.user().await) {
+            (Some(token), Some(user)) => {
+                let orgs = token.organizations(&user.login).await.ok().unwrap_or_default();
+                let mut org_map = std::collections::HashMap::new();
+                for org in orgs {
+                    if let Ok(repositories) = token.org_repositories(&org.login).await {
+                        org_map.insert(org, repositories);
                     }
-                    org_map
                 }
-                _ => Default::default(),
+                org_map
             }
-        },
-    );
+            _ => Default::default(),
+        }
+    });
 
     view! {
         <div class="space-y-4">
             <h2 class="text-2xl font-bold">"Your Organizations"</h2>
             <div class="space-y-6">
-                {move || match org_data.get() {
-                    None => view! { <div>"Loading organizations..."</div> }.into_view(),
-                    Some(org_map) => {
-                        org_map.into_iter().map(|(org, repositories)| {
+                <Suspense fallback=move || view! { <p>"Loading..."</p> }>
+                    <div>
+                    { move || Suspend::new(async move {
+                        org_data.await.into_iter().map(|(org, repositories)| {
                             view! {
                                 <div class="space-y-2">
                                     <div class="flex items-center space-x-2">
-                                        <img src=org.avatar_url class="w-8 h-8 rounded-full" />
-                                        <h3 class="text-xl font-semibold">{org.login}</h3>
+                                        <img src=org.avatar_url.clone() class="w-8 h-8 rounded-full" />
+                                        <h3 class="text-xl font-semibold">{org.login.clone()}</h3>
                                     </div>
                                     <div class="ml-10 space-y-2">
                                         {repositories.into_iter().map(|repo| {
                                             view! {
                                                 <div class="p-4 border rounded hover:bg-gray-50">
-                                                    <a href=repo.html_url target="_blank" class="font-medium hover:underline">
-                                                        {repo.full_name}
+                                                    <a href=repo.html_url.clone() target="_blank" class="font-medium hover:underline">
+                                                        {repo.full_name.clone()}
                                                     </a>
                                                     <span class="ml-2 text-sm text-gray-500">
                                                         {if repo.private { "Private" } else { "Public" }}
@@ -224,8 +225,9 @@ fn OrganizationList() -> impl IntoView {
                                 </div>
                             }
                         }).collect_view()
-                    }
-                }}
+                    })}
+                    </div>
+                </Suspense>
             </div>
         </div>
     }
@@ -248,23 +250,42 @@ fn MenuBar() -> impl IntoView {
                     if user_ctx.is_logged_in() {
                         let user_resource = user_ctx.user();
                         view! {
-                            {move || user_resource.get().map(|user| match user {
+                            {move || user_resource.get().as_deref().map(|user| match user {
                                 Some(user) => view! {
                                     <img
-                                        src=user.avatar_url
+                                        src=user.avatar_url.clone()
                                         class="w-8 h-8 rounded-full cursor-pointer"
                                         alt="User avatar"
                                     />
-                                }.into_view(),
-                                None => view! { <div>"Loading..."</div> }.into_view(),
+                                }.into_any(),
+                                None => view! { <div>"Loading..."</div> }.into_any(),
                             })}
-                        }.into_view()
+                        }.into_any()
                     } else {
-                        view! { <LoginButton /> }.into_view()
+                        view! { <LoginButton /> }.into_any()
                     }
                 }}
             </div>
         </div>
+    }
+}
+
+pub fn shell(options: LeptosOptions) -> impl IntoView {
+    view! {
+        <!DOCTYPE html>
+        <html lang="en">
+            <head>
+                <meta charset="utf-8"/>
+                <meta name="viewport" content="width=device-width, initial-scale=1"/>
+
+                <AutoReload options=options.clone() />
+                <HydrationScripts options/>
+                <MetaTags/>
+            </head>
+            <body class="bg-sky-100">
+                <App/>
+            </body>
+        </html>
     }
 }
 
@@ -279,12 +300,9 @@ pub fn App() -> impl IntoView {
     provide_context(user_ctx);
 
     view! {
-        <Body class="bg-sky-100" />
-
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta http-equiv="content-type" content="text/html; charset=utf-8" />
         <Stylesheet href="/style.css" />
         <Link rel="icon" type_="image/x-icon" href="/favicon.ico" />
+
 
         <Messages/>
 
@@ -294,9 +312,9 @@ pub fn App() -> impl IntoView {
             <div class="max-w-4xl mx-auto p-4">
                 <Router>
                     <main>
-                        <Routes>
+                        <Routes fallback=|| "Not found">
                             <Route
-                                path="/"
+                                path=path!("/")
                                 view=move || {
                                     view! {
                                         <div class="space-y-8">
@@ -307,7 +325,7 @@ pub fn App() -> impl IntoView {
                                 }
                             />
                             <Route
-                                path="/oauth/callback"
+                                path=path!("/oauth/callback")
                                 view=move || {
                                     view! {
                                         <OAuthCallback/>
@@ -334,7 +352,7 @@ fn OAuthCallback() -> impl IntoView {
     let message_ctx = expect_context::<MessageContext>();
     let user_ctx = expect_context::<UserContext>();
 
-    create_effect(move |_| {
+    Effect::new(move |_| {
         let navigate = navigate.clone();
         let message_ctx = message_ctx.clone();
         let user_ctx = user_ctx.clone();

@@ -1,4 +1,4 @@
-use leptos::*;
+use leptos::prelude::*;
 
 #[derive(Clone, Debug)]
 pub enum MessageSeverity {
@@ -24,7 +24,7 @@ impl MessageContext {
     pub fn new() -> Self {
         Self {
             // messages: create_rw_signal(Vec::new()),
-            messages: create_rw_signal(vec![
+            messages: RwSignal::new(vec![
                 Message {
                     id: 0,
                     text: "Welcome to Proof of Tests!".into(),
@@ -41,7 +41,7 @@ impl MessageContext {
                     severity: MessageSeverity::Error,
                 },
             ]),
-            next_id: create_rw_signal(3),
+            next_id: RwSignal::new(3),
         }
     }
 

@@ -12,18 +12,18 @@ mod wasm;
 pub fn hydrate() {
     _ = console_log::init_with_level(log::Level::Debug);
     console_error_panic_hook::set_once();
-    leptos::mount_to_body(app::App);
+    leptos::mount::hydrate_body(app::App);
 }
 
 #[cfg(feature = "ssr")]
 mod ssr_imports {
-    use crate::app::App;
+    use crate::app::{shell, App};
     use crate::handlers::{upload_proof_handler, upload_wasm_handler, validate_handler};
     use axum::{
         routing::{post, put},
         Extension, Router,
     };
-    use leptos::*;
+    use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
     use std::sync::Arc;
     use worker::{event, Context, Env, HttpRequest, Result};
@@ -37,7 +37,10 @@ mod ssr_imports {
 
         // build our application with a route
         let app: axum::Router<()> = Router::new()
-            .leptos_routes(&leptos_options, routes, App)
+            .leptos_routes(&leptos_options, routes, {
+                let leptos_options = leptos_options.clone();
+                move || shell(leptos_options.clone())
+            })
             .route("/api/*fn_name", post(leptos_axum::handle_server_fns))
             .route("/validate", post(validate_handler))
             .route("/upload_wasm", post(upload_wasm_handler))
